@@ -1,0 +1,39 @@
+name: build and test
+
+on:
+  push:
+    branches:
+      - "*"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo code
+        uses: actions/checkout@v3
+
+      - name: Start containers
+        run: docker-compose -f "docker-compose.yaml" up -d --build
+
+      - name: Install dependencies on each service
+        run: |
+          docker exec week2-devops_web1_1 pip install flake8 pytest pytest-flask pytest-cov
+          docker exec week2-devops_web2_1 pip install flake8 pytest pytest-flask pytest-cov
+
+      - name: Run tests and Build coverage within container and mapped volume
+        run: |
+          docker exec week2-devops_web1_1 python -m pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=tests -v tests/ | tee quote_gen/pytest-coverage.txt
+          docker exec week2-devops_web2_1 python -m pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=tests -v tests/ | tee quote_disp/pytest-coverage.txt
+
+      - name: Pytest coverage comment (quote_gen service)
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./quote_gen/pytest-coverage.txt
+          junitxml-path: ./quote_gen/pytest.xml
+
+      - name: Pytest coverage comment (quote_disp service)
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./quote_disp/pytest-coverage.txt
+          junitxml-path: ./quote_disp/pytest.xml
